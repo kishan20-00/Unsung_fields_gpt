@@ -75,6 +75,8 @@ json_mode = st.checkbox("JSON Mode", value=False)
 # Advanced Section (Collapsible)
 with st.expander("Advanced"):
     llamaguard = st.checkbox("Llamaguard", value=False)
+    if llamaguard:
+        st.session_state.selected_model = "llama-guard-3-8b"  # Set model to llama-guard-3-8b when checkbox is clicked
     top_p = st.slider("Top-P", min_value=0.0, max_value=1.0, value=1.0, step=0.01)
     seed = st.number_input("Seed", min_value=0, step=1, value=0, help="Random seed for reproducibility.")
     stop_sequence = st.text_input("Stop Sequence", placeholder="Enter stop sequence")
