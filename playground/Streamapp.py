@@ -1,8 +1,20 @@
 import streamlit as st
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Initialize Groq client
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # Initialize session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = "deepseek-r1-distill-llama-70b"  # Default model
 
 # Sidebar
 st.sidebar.title("Unsung Fields Cloud")
@@ -19,30 +31,53 @@ st.sidebar.button("Chat with us")
 st.title("Playground")
 
 # Top-right model selection
-st.markdown(
-    """
-    <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;">
-        <label for="model-select" style="margin-left: 10px; font-size: 16px;">Select Model:</label>
-    </div>
-    """,
-    unsafe_allow_html=True,
+selected_model = st.selectbox(
+    "Select Model",
+    options=[
+        "deepseek-r1-distill-llama-70b",
+        "distil-whisper-large-v3-en",
+        "gemma2-9b-it",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "llama-guard-3-8b",
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
+        "whisper-large-v3",
+        "whisper-large-v3-turbo",
+    ],
+    key="model_selector",
+    index=[
+        "deepseek-r1-distill-llama-70b",
+        "distil-whisper-large-v3-en",
+        "gemma2-9b-it",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "llama-guard-3-8b",
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
+        "whisper-large-v3",
+        "whisper-large-v3-turbo",
+    ].index(st.session_state.selected_model),
 )
-selected_model = st.selectbox("", options=["deepseek-r1-distill-llama-70b", "distil-whisper-large-v3-en", "gemma2-9b-it", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-guard-3-8b", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "whisper-large-v3", "whisper-large-v3-turbo"], key="model_selector")
+
+# Store the selected model in session state
+st.session_state.selected_model = selected_model
 
 # Parameters Section
 st.subheader("Parameters")
-temperature = st.slider("Temperature", min_value=0.0, max_value=2.0, value=1.0, step=0.1)
+temperature = st.slider("Temperature", min_value=0.0, max_value=2.0, value=0.5, step=0.1)
 max_tokens = st.slider("Max Completion Tokens", min_value=1, max_value=8092, value=1024, step=1)
-stream = st.checkbox("Stream", value=True)
+stream = st.checkbox("Stream", value=False)
 json_mode = st.checkbox("JSON Mode", value=False)
 
 # Advanced Section (Collapsible)
 with st.expander("Advanced"):
     llamaguard = st.checkbox("Llamaguard", value=False)
-    top_p = st.slider("Top-P", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
-    seed = st.number_input("Seed", min_value=0, step=1, value=42, help="Random seed for reproducibility.")
+    top_p = st.slider("Top-P", min_value=0.0, max_value=1.0, value=1.0, step=0.01)
+    seed = st.number_input("Seed", min_value=0, step=1, value=0, help="Random seed for reproducibility.")
     stop_sequence = st.text_input("Stop Sequence", placeholder="Enter stop sequence")
-
 
 # Chat Interface
 st.subheader("Chat")
@@ -52,8 +87,38 @@ if st.button("Send"):
     if user_message:
         # Append the user's message to chat history
         st.session_state.chat_history.append(("user", user_message))
-        # Placeholder for system output (you can replace this with real output later)
-        system_message = f"Echo: {user_message}"  # Replace this with system response logic
+
+        # Call Groq API for response
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": user_message},
+                ],
+                model=selected_model,
+                temperature=temperature,
+                max_completion_tokens=max_tokens,
+                top_p=top_p,
+                stop=stop_sequence or None,
+                stream=stream,
+            )
+
+            if stream:
+                # Handle streaming response
+                system_message = ""
+                for chunk in chat_completion:
+                        delta_content = chunk.choices[0].delta.content
+                        if delta_content:  # Check if delta_content is not None
+                                system_message += delta_content
+
+            else:
+                # Handle non-streaming response
+                system_message = chat_completion.choices[0].message.content
+
+        except Exception as e:
+            system_message = f"Error: {e}"
+
+        # Append the system's message to chat history
         st.session_state.chat_history.append(("system", system_message))
 
 # Display Chat History
